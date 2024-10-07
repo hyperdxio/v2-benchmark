@@ -1,0 +1,70 @@
+receivers:
+  # Data sources: traces, metrics, logs
+  otlp:
+    protocols:
+      grpc:
+        include_metadata: true
+        endpoint: '0.0.0.0:4317'
+      http:
+        cors:
+          allowed_origins: ['*']
+          allowed_headers: ['*']
+        include_metadata: true
+        endpoint: '0.0.0.0:4318'
+processors:
+  resourcedetection:
+    detectors:
+      - env
+      - system
+      - docker
+    timeout: 5s
+    override: false
+  batch:
+  memory_limiter:
+    # 80% of maximum memory up to 2G
+    limit_mib: 1500
+    # 25% of limit up to 2G
+    spike_limit_mib: 512
+    check_interval: 5s
+exporters:
+  logging:
+    loglevel: debug
+  clickhouse:
+    async_insert: false
+    create_schema: false
+    compression: lz4
+    endpoint: tcp://${env:CLICKHOUSE_SERVER_ENDPOINT}?dial_timeout=10s
+    database: default
+    ttl: 72h
+    logs_table_name: otel_logs
+    traces_table_name: otel_traces
+    metrics_table_name: otel_metrics
+    timeout: 5s
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 300s
+extensions:
+  health_check:
+    endpoint: :13133
+service:
+  telemetry:
+    metrics:
+      address: ':8888'
+    logs:
+      level: ${env:HYPERDX_LOG_LEVEL}
+  extensions: [health_check]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [attributes/attachHdxKey, memory_limiter, batch]
+      exporters: [logging, clickhouse]
+    metrics:
+      receivers: [otlp]
+      processors: [attributes/attachHdxKey, memory_limiter, batch]
+      exporters: [logging, clickhouse]
+    logs:
+      receivers: [otlp]
+      processors: [attributes/attachHdxKey, memory_limiter, batch]
+      exporters: [logging, clickhouse]
