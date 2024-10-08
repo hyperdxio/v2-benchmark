@@ -1,4 +1,7 @@
 receivers:
+  filelog:
+    include: [./flog/*.log]
+    poll_interval: 200ms
   # Data sources: traces, metrics, logs
   otlp:
     protocols:
@@ -21,10 +24,8 @@ processors:
     override: false
   batch:
   memory_limiter:
-    # 80% of maximum memory up to 2G
-    limit_mib: 1500
-    # 25% of limit up to 2G
-    spike_limit_mib: 512
+    limit_mib: 12800
+    spike_limit_mib: 4000
     check_interval: 5s
 exporters:
   clickhouse:
@@ -57,7 +58,7 @@ service:
     metrics:
       address: ':8888'
     logs:
-      level: error
+      level: debug
   extensions: [health_check]
   pipelines:
     traces:
@@ -69,6 +70,6 @@ service:
       processors: [memory_limiter, batch]
       exporters: [debug, clickhouse]
     logs:
-      receivers: [otlp]
+      receivers: [otlp, filelog]
       processors: [memory_limiter, batch]
       exporters: [debug, clickhouse, otlphttp/loki]

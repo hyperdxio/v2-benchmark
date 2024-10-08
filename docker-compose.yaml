@@ -8,6 +8,7 @@ services:
       CLICKHOUSE_SERVER_ENDPOINT: 'ch-server:9000'
     volumes:
       - ./otel-config.yaml:/etc/otelcol-contrib/config.yaml
+      - ./.data/flog:/flog
     ports:
       - '13133:13133' # health_check extension
       - '4317:4317' # OTLP gRPC receiver
@@ -218,7 +219,9 @@ services:
       - loki
   flog:
     image: mingrammer/flog
-    command: -f json -d 20ms -n 1000000 -l
+    command: ["--format=json", "--type=log", "--output=/logs/logs1.log", "--bytes=500000000"]
+    volumes:
+      - ./.data/flog:/logs/
     networks:
       - loki
   ch-server:
