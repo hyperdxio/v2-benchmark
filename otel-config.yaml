@@ -27,12 +27,10 @@ processors:
     spike_limit_mib: 512
     check_interval: 5s
 exporters:
-  logging:
-    loglevel: debug
   clickhouse:
     async_insert: false
     create_schema: false
-    compression: lz4
+    compress: lz4
     endpoint: tcp://${env:CLICKHOUSE_SERVER_ENDPOINT}?dial_timeout=10s
     database: default
     ttl: 72h
@@ -45,6 +43,10 @@ exporters:
       initial_interval: 5s
       max_interval: 30s
       max_elapsed_time: 300s
+  debug:
+    verbosity: detailed
+    sampling_initial: 5
+    sampling_thereafter: 200
 extensions:
   health_check:
     endpoint: :13133
@@ -53,18 +55,18 @@ service:
     metrics:
       address: ':8888'
     logs:
-      level: ${env:HYPERDX_LOG_LEVEL}
+      level: debug
   extensions: [health_check]
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [attributes/attachHdxKey, memory_limiter, batch]
-      exporters: [logging, clickhouse]
+      processors: [memory_limiter, batch]
+      exporters: [debug, clickhouse]
     metrics:
       receivers: [otlp]
-      processors: [attributes/attachHdxKey, memory_limiter, batch]
-      exporters: [logging, clickhouse]
+      processors: [memory_limiter, batch]
+      exporters: [debug, clickhouse]
     logs:
       receivers: [otlp]
-      processors: [attributes/attachHdxKey, memory_limiter, batch]
-      exporters: [logging, clickhouse]
+      processors: [memory_limiter, batch]
+      exporters: [debug, clickhouse]

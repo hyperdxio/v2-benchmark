@@ -3,7 +3,7 @@ networks:
   loki:
 services:
   otel-collector:
-    image: otel/opentelemetry-collector-contrib:0.109.0
+    image: otel/opentelemetry-collector-contrib:0.111.0
     environment:
       CLICKHOUSE_SERVER_ENDPOINT: 'ch-server:9000'
     volumes:
@@ -226,6 +226,7 @@ services:
     volumes:
       - ./clickhouse/config.xml:/etc/clickhouse-server/config.xml
       - ./clickhouse/users.xml:/etc/clickhouse-server/users.xml
+      - ./clickhouse/init/:/docker-entrypoint-initdb.d/
       - ./.data/ch_data:/var/lib/clickhouse
       - ./.data/ch_logs:/var/log/clickhouse-server
     restart: on-failure
