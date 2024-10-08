@@ -18,6 +18,7 @@ services:
       - loki
     depends_on:
       - ch-server
+      - gateway
   read:
     image: grafana/loki:3.1.0
     command: "-config.file=/etc/loki/config.yaml -target=read"
@@ -56,18 +57,18 @@ services:
       - minio
     networks:
       !!merge <<: *loki-dns
-  alloy:
-    image: grafana/alloy:latest
-    volumes:
-      - ./alloy-local-config.yaml:/etc/alloy/config.alloy:ro
-      - /var/run/docker.sock:/var/run/docker.sock
-    command: run --server.http.listen-addr=0.0.0.0:12345 --storage.path=/var/lib/alloy/data /etc/alloy/config.alloy
-    ports:
-      - 12345:12345
-    depends_on:
-      - gateway
-    networks:
-      - loki
+  # alloy:
+  #   image: grafana/alloy:latest
+  #   volumes:
+  #     - ./alloy-local-config.yaml:/etc/alloy/config.alloy:ro
+  #     - /var/run/docker.sock:/var/run/docker.sock
+  #   command: run --server.http.listen-addr=0.0.0.0:12345 --storage.path=/var/lib/alloy/data /etc/alloy/config.alloy
+  #   ports:
+  #     - 12345:12345
+  #   depends_on:
+  #     - gateway
+  #   networks:
+  #     - loki
   minio:
     image: minio/minio
     entrypoint:
@@ -168,6 +169,11 @@ services:
             location = / {
               return 200 'OK';
               auth_basic off;
+            }
+
+            location = /otlp/v1/logs {
+              proxy_pass       http://write:3100\$$request_uri;
+              proxy_set_header X-Scope-OrgID "tenant1";
             }
 
             location = /api/prom/push {

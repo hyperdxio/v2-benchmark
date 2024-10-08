@@ -44,9 +44,11 @@ exporters:
       max_interval: 30s
       max_elapsed_time: 300s
   debug:
-    verbosity: detailed
+    verbosity: basic
     sampling_initial: 5
     sampling_thereafter: 200
+  otlphttp/loki:
+    endpoint: http://gateway:3100/otlp
 extensions:
   health_check:
     endpoint: :13133
@@ -55,7 +57,7 @@ service:
     metrics:
       address: ':8888'
     logs:
-      level: debug
+      level: error
   extensions: [health_check]
   pipelines:
     traces:
@@ -69,4 +71,4 @@ service:
     logs:
       receivers: [otlp]
       processors: [memory_limiter, batch]
-      exporters: [debug, clickhouse]
+      exporters: [debug, clickhouse, otlphttp/loki]
