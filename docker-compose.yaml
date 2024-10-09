@@ -207,7 +207,7 @@ services:
       - loki
   flog:
     image: mingrammer/flog
-    command: ["--format=json", "--type=log", "--output=/logs/logs1.log", "--bytes=500000000"]
+    command: ["--format=json", "--type=log", "--output=/logs/logs1.log", "--bytes=1000000000"]
     volumes:
       - ./.data/flog:/logs/
     networks:
