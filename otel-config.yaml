@@ -50,6 +50,8 @@ exporters:
     sampling_thereafter: 200
   otlphttp/loki:
     endpoint: http://gateway:3100/otlp
+  elasticsearch:
+    endpoint: http://elasticsearch:9200
 extensions:
   health_check:
     endpoint: :13133
@@ -58,7 +60,7 @@ service:
     metrics:
       address: ':8888'
     logs:
-      level: debug
+      level: info
   extensions: [health_check]
   pipelines:
     traces:
@@ -72,4 +74,4 @@ service:
     logs:
       receivers: [otlp, filelog]
       processors: [memory_limiter, batch]
-      exporters: [debug, clickhouse, otlphttp/loki]
+      exporters: [debug, clickhouse, otlphttp/loki, elasticsearch]

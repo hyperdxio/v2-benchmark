@@ -55,6 +55,8 @@ benchmark() {
     resp=$(curl -o /dev/null -s -w "%{time_total} %{http_code}" \
       -X $METHOD "$URL" \
       -H "Content-Type: application/json" \
+      -H "kbn-xsrf: reporting" \
+      -H "Elastic-Api-Version: 1" \
       -d "$DATA")
 
     # Extract the response time and HTTP status code
@@ -164,9 +166,65 @@ benchmarkHyperDX() {
   benchmark "HyperDX" "BASIC SELECT" "GET" "$_requestUrl" ""
 }
 
+benchmarkElasticsearch() {
+  # Extract current data size
+  local _dataSize=$(du -sh ./.data/elasticsearch-data | awk '{print $1}')
+  echo "[Elastic] Current data size: $_dataSize"
+
+  local payload=$(jq -n \
+    --argjson from "$FROM" \
+    --argjson to "$TO" \
+    '{
+       "batch": [
+        {
+          "request": {
+            "params": {
+              "query": "FROM logs*\n| WHERE `Attributes.log.file.name`==\"logs1.log\"\n| LIMIT 5000",
+              "locale": "en",
+              "filter": {
+                "bool": {
+                  "must": [],
+                  "filter": [
+                    {
+                      "range": {
+                        "@timestamp": {
+                          "format": "epoch_millis",
+                          "gte": $from,
+                          "lte": $to
+                        }
+                      }
+                    }
+                  ],
+                  "should": [],
+                  "must_not": []
+                }
+              },
+              "dropNullColumns": true
+            }
+          },
+          "options": {
+            "strategy": "esql_async",
+            "isSearchStored": false,
+            "executionContext": {
+              "type": "application",
+              "name": "discover",
+              "url": "/app/discover",
+              "page": "app",
+              "id": "new"
+            }
+          }
+        }
+      ]
+    }'
+  )
+
+  benchmark "Elastic" "BASIC SELECT" "POST" "http://localhost:5601/internal/bsearch?compress=false" "$payload"
+}
+
 # Run the benchmark
 echo "Running the benchmark with $RETRIES iterations each..."
 benchmarkLoki 
 benchmarkHyperDX
+benchmarkElasticsearch
 
 echo "Script completed successfully."
