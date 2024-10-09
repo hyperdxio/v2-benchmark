@@ -2,6 +2,8 @@ receivers:
   filelog:
     include: [./flog/*.log]
     poll_interval: 200ms
+  docker_stats:
+    collection_interval: 2s
   # Data sources: traces, metrics, logs
   otlp:
     protocols:
@@ -52,6 +54,12 @@ exporters:
     endpoint: http://gateway:3100/otlp
   elasticsearch:
     endpoint: http://elasticsearch:9200
+  # gRPC setup (alternative)
+  otlp/hdx:
+    endpoint: 'in-otel.hyperdx.io:4317'
+    headers:
+      authorization: ${env:HYPERDX_API_KEY}
+    compression: gzip
 extensions:
   health_check:
     endpoint: :13133
@@ -68,9 +76,9 @@ service:
       processors: [memory_limiter, batch]
       exporters: [debug, clickhouse]
     metrics:
-      receivers: [otlp]
+      receivers: [otlp, docker_stats]
       processors: [memory_limiter, batch]
-      exporters: [debug, clickhouse]
+      exporters: [debug, otlp/hdx]
     logs:
       receivers: [otlp, filelog]
       processors: [memory_limiter, batch]
