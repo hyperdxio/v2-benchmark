@@ -170,16 +170,18 @@ benchmarkElasticsearch() {
   # Extract current data size
   local _dataSize=$(du -sh ./.data/elasticsearch-data | awk '{print $1}')
   echo "[Elastic] Current data size: $_dataSize"
+  local _query="FROM logs* | KEEP @timestamp,Body | SORT @timestamp DESC | LIMIT $LOGS_LIMIT"
 
   local payload=$(jq -n \
     --argjson from "$FROM" \
     --argjson to "$TO" \
+    --arg query "$_query" \
     '{
        "batch": [
         {
           "request": {
             "params": {
-              "query": "FROM logs*\n| WHERE `Attributes.log.file.name`==\"logs1.log\"\n| LIMIT 5000",
+              "query": $query,
               "locale": "en",
               "filter": {
                 "bool": {
@@ -203,7 +205,7 @@ benchmarkElasticsearch() {
             }
           },
           "options": {
-            "strategy": "esql_async",
+            "strategy": "esql",
             "isSearchStored": false,
             "executionContext": {
               "type": "application",
