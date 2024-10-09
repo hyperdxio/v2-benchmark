@@ -41,9 +41,10 @@ check_health() {
 
 benchmark() {
   local SERVICE=$1
-  local METHOD=$2
-  local URL=$3
-  local DATA=$4
+  local NAME=$2
+  local METHOD=$3
+  local URL=$4
+  local DATA=$5
 
   local MIN_TIME=999999
   local MAX_TIME=0
@@ -81,7 +82,7 @@ benchmark() {
 
   # Calculate the average response time
   local AVG_TIME=$(echo "scale=3; $TOTAL_TIME / $RETRIES" | bc)
-  echo "[$SERVICE] Average response time: $AVG_TIME ms, Min response time: $MIN_TIME ms, Max response time: $MAX_TIME ms"
+  echo "[$SERVICE] - ($NAME): Average response time: $AVG_TIME ms, Min response time: $MIN_TIME ms, Max response time: $MAX_TIME ms"
   # echo "Min response time: $MIN_TIME ms"
   # echo "Max response time: $MAX_TIME ms"
 }
@@ -104,6 +105,7 @@ while ! check_health "localhost" "8123" "/ping" \
 done
 
 # Make sure all data is loaded
+sleep 5
 
 # Prepare the benchmark
 echo "Collecting Grafana dashboard data..."
@@ -113,6 +115,10 @@ FROM=$(date -v -12H +%s)000
 TO=$(date +%s)000
 
 benchmarkLoki() {
+  # Extract current data size
+  local _dataSize=$(du -sh ./.data/minio/loki-data | awk '{print $1}')
+  echo "[Loki] Current data size: $_dataSize"
+
   local payload=$(jq -n \
     --arg uid "$LOKI_DATA_SOURCE_ID" \
     --arg from "$FROM" \
@@ -141,17 +147,21 @@ benchmarkLoki() {
       to: $to
     }'
   )
-  benchmark "Loki" "POST" "http://localhost:3000/api/ds/query?ds_type=loki" "$payload"
+  benchmark "Loki" "BASIC SELECT" "POST" "http://localhost:3000/api/ds/query?ds_type=loki" "$payload"
 }
 
 benchmarkHyperDX() {
+  # Extract current data size
+  local _dataSize=$(du -sh ./.data/minio/ch-data | awk '{print $1}')
+  echo "[HyperDX] Current data size: $_dataSize"
+
   # Copy the request URL from HyperDX
   local _requestUrl="http://localhost:8123/?add_http_cors_header=1&query=SELECT+TimestampTime%2CBody+FROM+%7BHYPERDX_PARAM_1544803905%3AIdentifier%7D.%7BHYPERDX_PARAM_129845054%3AIdentifier%7D+WHERE+%28TimestampTime+%3E%3D+fromUnixTimestamp64Milli%28%7BHYPERDX_PARAM_1764799474%3AInt64%7D%29+AND+TimestampTime+%3C%3D+fromUnixTimestamp64Milli%28%7BHYPERDX_PARAM_544053449%3AInt64%7D%29%29+AND+ServiceName+%3D+%27%27++ORDER+BY+TimestampTime+DESC+LIMIT+%7BHYPERDX_PARAM_49586%3AInt32%7D+OFFSET+%7BHYPERDX_PARAM_1723648%3AInt32%7D+FORMAT+JSONCompactEachRowWithNamesAndTypes&date_time_output_format=iso&wait_end_of_query=0&cancel_http_readonly_queries_on_client_close=1&param_HYPERDX_PARAM_1544803905=default&param_HYPERDX_PARAM_129845054=otel_logs&param_HYPERDX_PARAM_1723648=8800&min_bytes_to_use_direct_io=1"
   
   # Attach time and limit parameters
   _requestUrl="${_requestUrl}&param_HYPERDX_PARAM_1764799474=${FROM}&param_HYPERDX_PARAM_544053449=${TO}&param_HYPERDX_PARAM_49586=${LOGS_LIMIT}"
 
-  benchmark "HyperDX" "GET" "$_requestUrl" ""
+  benchmark "HyperDX" "BASIC SELECT" "GET" "$_requestUrl" ""
 }
 
 # Run the benchmark
