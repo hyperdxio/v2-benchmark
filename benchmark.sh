@@ -2,6 +2,7 @@
 
 CURL_BIN=$(which curl)
 RETRIES=5
+LOGS_LIMIT=5000
 
 cleanup() {
     # echo "Spinning down existing services..."
@@ -11,6 +12,12 @@ cleanup() {
     # rm -rf .data
 
     exit 0
+}
+
+# Function to URL encode a parameter
+urlencode() {
+    local encoded_param=$(jq -nr --arg v "$1" '$v|@uri')
+    echo "$encoded_param"
 }
 
 # Health check
@@ -44,7 +51,6 @@ benchmark() {
 
   # Perform the benchmark
   for i in $(seq 1 $RETRIES); do
-    # Send the POST request and capture the response time
     resp=$(curl -o /dev/null -s -w "%{time_total} %{http_code}" \
       -X $METHOD "$URL" \
       -H "Content-Type: application/json" \
@@ -103,38 +109,54 @@ done
 echo "Collecting Grafana dashboard data..."
 LOKI_DATA_SOURCE_ID=$(curl -s -X GET http://localhost:3000/api/datasources | jq -r '.[0].uid')
 echo "Loki data source ID: $LOKI_DATA_SOURCE_ID"
+FROM=$(date -v -12H +%s)000
+TO=$(date +%s)000
 
 benchmarkLoki() {
   local payload=$(jq -n \
     --arg uid "$LOKI_DATA_SOURCE_ID" \
-    --arg from "$(date -v -12H +%s)000" \
-    --arg to "$(date +%s)000" \
+    --arg from "$FROM" \
+    --arg to "$TO" \
+    --argjson limit $LOGS_LIMIT \
     '{
       queries: [
         {
-          expr: "{service_name=\"unknown_service\"}",
-          queryType: "range",
-          refId: "loki-data-samples",
-          maxLines: 10,
-          supportingQueryType: "dataSample",
-          step: "",
-          legendFormat: "",
-          datasource: {
-            type: "loki",
-            uid: $uid
+          "refId": "A",
+          "expr": "{service_name=\"unknown_service\"}",
+          "queryType": "range",
+          "datasource": {
+            "type": "loki",
+            "uid": $uid
           },
-          datasourceId: 1,
-          intervalMs: 3600000
+          "editorMode": "builder",
+          "maxLines": $limit,
+          "step": "",
+          "legendFormat": "",
+          "datasourceId": 1,
+          "intervalMs": 30000,
+          "maxDataPoints": 1180
         }
       ], 
       from: $from,
       to: $to
     }'
   )
-  benchmark "Loki" "POST" "http://localhost:3000/api/ds/query?ds_type=loki&requestId=loki-data-samples_1" "$payload"
+  benchmark "Loki" "POST" "http://localhost:3000/api/ds/query?ds_type=loki" "$payload"
+}
+
+benchmarkHyperDX() {
+  # Copy the request URL from HyperDX
+  local _requestUrl="http://localhost:8123/?add_http_cors_header=1&query=SELECT+TimestampTime%2CBody+FROM+%7BHYPERDX_PARAM_1544803905%3AIdentifier%7D.%7BHYPERDX_PARAM_129845054%3AIdentifier%7D+WHERE+%28TimestampTime+%3E%3D+fromUnixTimestamp64Milli%28%7BHYPERDX_PARAM_1764799474%3AInt64%7D%29+AND+TimestampTime+%3C%3D+fromUnixTimestamp64Milli%28%7BHYPERDX_PARAM_544053449%3AInt64%7D%29%29+AND+ServiceName+%3D+%27%27++ORDER+BY+TimestampTime+DESC+LIMIT+%7BHYPERDX_PARAM_49586%3AInt32%7D+OFFSET+%7BHYPERDX_PARAM_1723648%3AInt32%7D+FORMAT+JSONCompactEachRowWithNamesAndTypes&date_time_output_format=iso&wait_end_of_query=0&cancel_http_readonly_queries_on_client_close=1&param_HYPERDX_PARAM_1544803905=default&param_HYPERDX_PARAM_129845054=otel_logs&param_HYPERDX_PARAM_1723648=8800&min_bytes_to_use_direct_io=1"
+  
+  # Attach time and limit parameters
+  _requestUrl="${_requestUrl}&param_HYPERDX_PARAM_1764799474=${FROM}&param_HYPERDX_PARAM_544053449=${TO}&param_HYPERDX_PARAM_49586=${LOGS_LIMIT}"
+
+  benchmark "HyperDX" "GET" "$_requestUrl" ""
 }
 
 # Run the benchmark
+echo "Running the benchmark with $RETRIES iterations each..."
 benchmarkLoki 
+benchmarkHyperDX
 
 echo "Script completed successfully."
