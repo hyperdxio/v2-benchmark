@@ -89,7 +89,9 @@ services:
       - loki
   grafana:
     image: grafana/grafana:latest
+    restart: unless-stopped
     environment:
+      - GF_INSTALL_PLUGINS=grafana-clickhouse-datasource
       - GF_PATHS_PROVISIONING=/etc/grafana/provisioning
       - GF_AUTH_ANONYMOUS_ENABLED=true
       - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
@@ -111,6 +113,14 @@ services:
               httpHeaderName1: "X-Scope-OrgID"
             secureJsonData:
               httpHeaderValue1: "tenant1"
+          - name: ClickHouse
+            type: grafana-clickhouse-datasource
+            jsonData:
+              defaultDatabase: default
+              port: 9000
+              host: ch-server
+              username: default
+              tlsSkipVerify: false
         EOF
         /run.sh
     ports:
