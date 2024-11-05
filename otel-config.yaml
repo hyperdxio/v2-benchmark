@@ -17,6 +17,29 @@ receivers:
         include_metadata: true
         endpoint: '0.0.0.0:4318'
 processors:
+  attributes/custom:
+    actions:
+      - key: service.name
+        value: my-service
+        action: insert
+      - key: service.version
+        value: 1.0.0
+        action: insert
+      - key: service.namespace
+        value: my-namespace
+        action: insert
+      - key: host.name
+        value: my-host
+        action: insert
+      - key: os.type
+        value: linux
+        action: insert
+      - key: deployment.environment
+        value: production
+        action: insert
+      - key: cloud.provider
+        value: aws
+        action: insert
   resourcedetection:
     detectors:
       - env
@@ -73,7 +96,7 @@ service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [memory_limiter, batch]
+      processors: [attributes/custom, memory_limiter, batch]
       exporters: [debug, clickhouse]
     metrics:
       receivers: [otlp, docker_stats]
@@ -81,5 +104,5 @@ service:
       exporters: [debug, otlp/hdx]
     logs:
       receivers: [otlp, filelog]
-      processors: [memory_limiter, batch]
+      processors: [attributes/custom, memory_limiter, batch]
       exporters: [debug, clickhouse, otlphttp/loki, elasticsearch]
