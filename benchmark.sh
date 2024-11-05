@@ -15,8 +15,10 @@ cleanup() {
 }
 
 # Function to URL encode a parameter
-urlencode() {
-    local encoded_param=$(jq -nr --arg v "$1" '$v|@uri')
+url_encode() {
+    local param="$1"
+    # Use jq to encode the parameter
+    local encoded_param=$(jq -Rn --arg param "$param" '$param | @uri')
     echo "$encoded_param"
 }
 
@@ -115,7 +117,7 @@ LOKI_DATA_SOURCE_ID=$(curl -s -X GET http://localhost:3000/api/datasources | jq 
 CLICKHOUSE_DATA_SOURCE_ID=$(curl -s -X GET http://localhost:3000/api/datasources | jq -r '.[] | select(.type == "grafana-clickhouse-datasource") | .uid')
 echo "Loki data source ID: $LOKI_DATA_SOURCE_ID"
 echo "Clickhouse data source ID: $CLICKHOUSE_DATA_SOURCE_ID"
-FROM=$(date -v -12H +%s)000
+FROM=$(date -v -24H +%s)000
 TO=$(date +%s)000
 
 benchmarkLoki() {
@@ -290,35 +292,106 @@ benchmarkGrafanaClickHouse() {
   )
 
   local payloadB=$(jq -n \
-    --arg uid "$LOKI_DATA_SOURCE_ID" \
+    --arg uid "$CLICKHOUSE_DATA_SOURCE_ID" \
     --arg from "$FROM" \
     --arg to "$TO" \
     --argjson limit $LOGS_LIMIT \
     '{
-      queries: [
+      "queries": [
         {
           "refId": "A",
-          "expr": "{service_name=\"unknown_service\"} |= `POST`",
-          "queryType": "range",
           "datasource": {
-            "type": "loki",
+            "type": "grafana-clickhouse-datasource",
             "uid": $uid
           },
-          "editorMode": "builder",
-          "maxLines": $limit,
-          "step": "",
-          "legendFormat": "",
-          "datasourceId": 1,
-          "intervalMs": 30000,
-          "maxDataPoints": 1180
+          "pluginVersion": "4.5.0",
+          "editorType": "builder",
+          "rawSql": "SELECT Timestamp as \"timestamp\", Body as \"body\", LogAttributes as \"labels\" FROM \"default\".\"otel_logs\" WHERE ( timestamp >= $__fromTime AND timestamp <= $__toTime ) ORDER BY timestamp DESC LIMIT 5000",
+          "builderOptions": {
+            "database": "default",
+            "table": "otel_logs",
+            "queryType": "logs",
+            "mode": "list",
+            "columns": [
+              {
+                "name": "Body",
+                "type": "String",
+                "custom": false,
+                "alias": "Body"
+              },
+              {
+                "name": "TimestampTime",
+                "type": "DateTime",
+                "custom": false,
+                "alias": "TimestampTime"
+              },
+              {
+                "name": "TimestampTime",
+                "type": "DateTime",
+                "hint": "time",
+                "alias": "TimestampTime"
+              },
+              {
+                "name": "SeverityText",
+                "hint": "log_level"
+              },
+              {
+                "name": "Body",
+                "hint": "log_message"
+              },
+              {
+                "name": "LogAttributes",
+                "hint": "log_labels"
+              }
+            ],
+            "meta": {
+              "otelVersion": "latest",
+              "otelEnabled": false,
+              "logMessageLike": ""
+            },
+            "limit": $limit,
+            "filters": [
+              {
+                "type": "datetime",
+                "operator": "WITH IN DASHBOARD TIME RANGE",
+                "filterType": "custom",
+                "key": "",
+                "hint": "time",
+                "condition": "AND"
+              },
+              {
+                "type": "string",
+                "operator": "IS ANYTHING",
+                "filterType": "custom",
+                "key": "",
+                "hint": "log_level",
+                "condition": "AND"
+              }
+            ],
+            "orderBy": [
+              {
+                "name": "",
+                "hint": "time",
+                "dir": "DESC",
+                "default": true
+              }
+            ]
+          },
+          "format": 2,
+          "meta": {
+            "timezone": "America/Los_Angeles"
+          },
+          "datasourceId": 2,
+          "intervalMs": 5000,
+          "maxDataPoints": 753
         }
-      ], 
-      from: $from,
-      to: $to
+      ],
+      "from": $from,
+      "to": $to
     }'
   )
   benchmark "Grafana-CH" "BASIC SELECT ALL" "POST" "http://localhost:3000/api/ds/query" "$payloadA"
-  # benchmark "Grafana-CH" "BASIC SELECT TEXT CONTAINS" "POST" "http://localhost:3000/api/ds/query?ds_type=loki" "$payloadB"
+  benchmark "Grafana-CH" "BASIC SELECT TEXT CONTAINS" "POST" "http://localhost:3000/api/ds/query" "$payloadB"
 }
 benchmarkHyperDX() {
   # Extract current data size
@@ -326,24 +399,26 @@ benchmarkHyperDX() {
   echo "[HyperDX] Current data size: $_dataSize"
 
   # Copy the request URL from HyperDX
-  local _requestUrlA="http://localhost:8123/?add_http_cors_header=1&query=SELECT+TimestampTime%2CBody+FROM+%7BHYPERDX_PARAM_1544803905%3AIdentifier%7D.%7BHYPERDX_PARAM_129845054%3AIdentifier%7D+WHERE+%28TimestampTime+%3E%3D+fromUnixTimestamp64Milli%28%7BHYPERDX_PARAM_1764799474%3AInt64%7D%29+AND+TimestampTime+%3C%3D+fromUnixTimestamp64Milli%28%7BHYPERDX_PARAM_544053449%3AInt64%7D%29%29+ORDER+BY+TimestampTime+DESC+LIMIT+%7BHYPERDX_PARAM_49586%3AInt32%7D+FORMAT+JSONCompactEachRowWithNamesAndTypes&date_time_output_format=iso&wait_end_of_query=0&cancel_http_readonly_queries_on_client_close=1&param_HYPERDX_PARAM_1544803905=default&param_HYPERDX_PARAM_129845054=otel_logs&param_HYPERDX_PARAM_1723648=8800&min_bytes_to_use_direct_io=1"
+  local _requestUrlA="http://localhost:8123/?add_http_cors_header=1&query=SELECT+TimestampTime%2CBody%2CServiceName+FROM+%7BHYPERDX_PARAM_1544803905%3AIdentifier%7D.%7BHYPERDX_PARAM_129845054%3AIdentifier%7D+WHERE+%28TimestampTime+%3E%3D+fromUnixTimestamp64Milli%28%7BHYPERDX_PARAM_1710755125%3AInt64%7D%29+AND+TimestampTime+%3C%3D+fromUnixTimestamp64Milli%28%7BHYPERDX_PARAM_1483136077%3AInt64%7D%29%29++ORDER+BY+TimestampTime+DESC+LIMIT+%7BHYPERDX_PARAM_49586%3AInt32%7D+OFFSET+%7BHYPERDX_PARAM_48%3AInt32%7D&default_format=JSONCompactEachRowWithNamesAndTypes&date_time_output_format=iso&wait_end_of_query=0&cancel_http_readonly_queries_on_client_close=1&user=default&param_HYPERDX_PARAM_1544803905=default&param_HYPERDX_PARAM_129845054=otel_logs&param_HYPERDX_PARAM_1710755125=${FROM}&param_HYPERDX_PARAM_1483136077=${TO}&param_HYPERDX_PARAM_49586=${LOGS_LIMIT}&param_HYPERDX_PARAM_48=0"
+  local _requestUrlB="http://localhost:8123/?add_http_cors_header=1&query=SELECT+TimestampTime%2CBody%2CServiceName+FROM+%7BHYPERDX_PARAM_1544803905%3AIdentifier%7D.%7BHYPERDX_PARAM_129845054%3AIdentifier%7D+WHERE+%28TimestampTime+%3E%3D+fromUnixTimestamp64Milli%28%7BHYPERDX_PARAM_1652484762%3AInt64%7D%29+AND+TimestampTime+%3C%3D+fromUnixTimestamp64Milli%28%7BHYPERDX_PARAM_1541406441%3AInt64%7D%29%29+AND+%28%28hasTokenCaseInsensitive%28%60Body%60%2C+%27POST%27%29%29%29++ORDER+BY+TimestampTime+DESC+LIMIT+%7BHYPERDX_PARAM_49586%3AInt32%7D+OFFSET+%7BHYPERDX_PARAM_48%3AInt32%7D&default_format=JSONCompactEachRowWithNamesAndTypes&date_time_output_format=iso&wait_end_of_query=0&cancel_http_readonly_queries_on_client_close=1&user=default&param_HYPERDX_PARAM_1544803905=default&param_HYPERDX_PARAM_129845054=otel_logs&param_HYPERDX_PARAM_1652484762=${FROM}&param_HYPERDX_PARAM_1541406441=${TO}&param_HYPERDX_PARAM_49586=${LOGS_LIMIT}&param_HYPERDX_PARAM_48=0"
   # Attach time and limit parameters
   _requestUrlA="${_requestUrlA}&param_HYPERDX_PARAM_1764799474=${FROM}&param_HYPERDX_PARAM_544053449=${TO}&param_HYPERDX_PARAM_49586=${LOGS_LIMIT}"
 
   benchmark "HyperDX" "BASIC SELECT ALL" "GET" "$_requestUrlA" ""
-  # benchmark "HyperDX" "BASIC SELECT TEXT CONTAINS" "GET" "$_requestUrl" ""
+  benchmark "HyperDX" "BASIC SELECT TEXT CONTAINS" "GET" "$_requestUrlB" ""
 }
 
 benchmarkElasticsearch() {
   # Extract current data size
   local _dataSize=$(du -sh ./.data/elasticsearch-data | awk '{print $1}')
   echo "[Elastic] Current data size: $_dataSize"
-  local _query="FROM logs* | KEEP @timestamp,Body | SORT @timestamp DESC | LIMIT $LOGS_LIMIT"
+  local queryA="FROM logs* | KEEP @timestamp,Body | SORT @timestamp DESC | LIMIT $LOGS_LIMIT"
+  local queryB="FROM logs* | WHERE Body LIKE \"*POST*\" | KEEP @timestamp,Body | SORT @timestamp DESC | LIMIT $LOGS_LIMIT"
 
-  local payload=$(jq -n \
+  local payloadA=$(jq -n \
     --argjson from "$FROM" \
     --argjson to "$TO" \
-    --arg query "$_query" \
+    --arg query "$queryA" \
     '{
        "batch": [
         {
@@ -388,14 +463,63 @@ benchmarkElasticsearch() {
     }'
   )
 
-  benchmark "Elastic" "BASIC SELECT" "POST" "http://localhost:5601/internal/bsearch?compress=false" "$payload"
+  local payloadB=$(jq -n \
+    --argjson from "$FROM" \
+    --argjson to "$TO" \
+    --arg query "$queryB" \
+    '{
+       "batch": [
+        {
+          "request": {
+            "params": {
+              "query": $query,
+              "locale": "en",
+              "filter": {
+                "bool": {
+                  "must": [],
+                  "filter": [
+                    {
+                      "range": {
+                        "@timestamp": {
+                          "format": "epoch_millis",
+                          "gte": $from,
+                          "lte": $to
+                        }
+                      }
+                    }
+                  ],
+                  "should": [],
+                  "must_not": []
+                }
+              },
+              "dropNullColumns": true
+            }
+          },
+          "options": {
+            "strategy": "esql",
+            "isSearchStored": false,
+            "executionContext": {
+              "type": "application",
+              "name": "discover",
+              "url": "/app/discover",
+              "page": "app",
+              "id": "new"
+            }
+          }
+        }
+      ]
+    }'
+  )
+
+  benchmark "Elastic" "BASIC SELECT" "POST" "http://localhost:5601/internal/bsearch?compress=false" "$payloadA"
+  benchmark "Elastic" "BASIC SELECT TEXT CONTAINS" "POST" "http://localhost:5601/internal/bsearch?compress=false" "$payloadB"
 }
 
 # Run the benchmark
 echo "Running the benchmark with $RETRIES iterations each..."
-# benchmarkLoki 
+benchmarkLoki 
 benchmarkGrafanaClickHouse
 benchmarkHyperDX
-# benchmarkElasticsearch
+benchmarkElasticsearch
 
 echo "Script completed successfully."
