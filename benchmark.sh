@@ -163,7 +163,7 @@ benchmarkLoki() {
       queries: [
         {
           "refId": "A",
-          "expr": "{service_name=\"unknown_service\"} |= `/revolutionary/dot-com`",
+          "expr": "{service_name=\"unknown_service\"} |= `6361`",
           "queryType": "range",
           "datasource": {
             "type": "loki",
@@ -306,7 +306,7 @@ benchmarkGrafanaClickHouse() {
           },
           "pluginVersion": "4.5.0",
           "editorType": "builder",
-          "rawSql": "SELECT Timestamp as \"timestamp\", Body as \"body\", LogAttributes as \"labels\" FROM \"default\".\"otel_logs\" WHERE ( timestamp >= $__fromTime AND timestamp <= $__toTime ) ORDER BY timestamp DESC LIMIT 5000 SETTINGS use_query_cache=false,min_bytes_to_use_direct_io=1",
+          "rawSql": "SELECT Timestamp as \"timestamp\", Body as \"body\", LogAttributes as \"labels\" FROM \"default\".\"otel_logs\" WHERE ( timestamp >= $__fromTime AND timestamp <= $__toTime ) AND (body LIKE toString(6361)) ORDER BY timestamp DESC LIMIT 5000 SETTINGS use_query_cache=false,min_bytes_to_use_direct_io=1",
           "builderOptions": {
             "database": "default",
             "table": "otel_logs",
@@ -400,7 +400,8 @@ benchmarkHyperDX() {
 
   # Copy the request URL from HyperDX
   local _requestUrlA="http://localhost:8123/?use_query_cache=0&min_bytes_to_use_direct_io=1&add_http_cors_header=1&query=SELECT+TimestampTime%2CBody+FROM+%7BHYPERDX_PARAM_1544803905%3AIdentifier%7D.%7BHYPERDX_PARAM_129845054%3AIdentifier%7D+WHERE+%28TimestampTime+%3E%3D+fromUnixTimestamp64Milli%28%7BHYPERDX_PARAM_1710755125%3AInt64%7D%29+AND+TimestampTime+%3C%3D+fromUnixTimestamp64Milli%28%7BHYPERDX_PARAM_1483136077%3AInt64%7D%29%29++ORDER+BY+TimestampTime+DESC+LIMIT+%7BHYPERDX_PARAM_49586%3AInt32%7D+OFFSET+%7BHYPERDX_PARAM_48%3AInt32%7D&default_format=JSONCompactEachRowWithNamesAndTypes&date_time_output_format=iso&wait_end_of_query=0&cancel_http_readonly_queries_on_client_close=1&user=default&param_HYPERDX_PARAM_1544803905=default&param_HYPERDX_PARAM_129845054=otel_logs&param_HYPERDX_PARAM_1710755125=${FROM}&param_HYPERDX_PARAM_1483136077=${TO}&param_HYPERDX_PARAM_49586=${LOGS_LIMIT}&param_HYPERDX_PARAM_48=0"
-  local _requestUrlB="http://localhost:8123/?use_query_cache=0&min_bytes_to_use_direct_io=1&add_http_cors_header=1&query=SELECT+TimestampTime%2CBody+FROM+%7BHYPERDX_PARAM_1544803905%3AIdentifier%7D.%7BHYPERDX_PARAM_129845054%3AIdentifier%7D+WHERE+%28TimestampTime+%3E%3D+fromUnixTimestamp64Milli%28%7BHYPERDX_PARAM_1236982697%3AInt64%7D%29+AND+TimestampTime+%3C%3D+fromUnixTimestamp64Milli%28%7BHYPERDX_PARAM_1984658427%3AInt64%7D%29%29+AND+%28%28hasTokenCaseInsensitive%28%60Body%60%2C+%27revolutionary%27%29+AND+hasTokenCaseInsensitive%28%60Body%60%2C+%27dot%27%29+AND+hasTokenCaseInsensitive%28%60Body%60%2C+%27com%27%29+AND+%28lower%28%60Body%60%29+LIKE+lower%28%27%25%2Frevolutionary%2Fdot-com%25%27%29%29%29%29++ORDER+BY+TimestampTime+DESC+LIMIT+%7BHYPERDX_PARAM_49586%3AInt32%7D+OFFSET+%7BHYPERDX_PARAM_48%3AInt32%7D&default_format=JSONCompactEachRowWithNamesAndTypes&date_time_output_format=iso&wait_end_of_query=0&cancel_http_readonly_queries_on_client_close=1&user=default&param_HYPERDX_PARAM_1544803905=default&param_HYPERDX_PARAM_129845054=otel_logs&param_HYPERDX_PARAM_1236982697=${FROM}&param_HYPERDX_PARAM_1984658427=${TO}&param_HYPERDX_PARAM_49586=${LOGS_LIMIT}&param_HYPERDX_PARAM_48=0"
+  local _requestUrlB="http://localhost:8123/?use_query_cache=0&min_bytes_to_use_direct_io=1&add_http_cors_header=1&query=SELECT+Timestamp%2CBody%2CServiceName%2CTimestampTime+FROM+%7BHYPERDX_PARAM_1544803905%3AIdentifier%7D.%7BHYPERDX_PARAM_129845054%3AIdentifier%7D+WHERE+%28TimestampTime+%3E%3D+fromUnixTimestamp64Milli%28%7BHYPERDX_PARAM_1515071666%3AInt64%7D%29+AND+TimestampTime+%3C%3D+fromUnixTimestamp64Milli%28%7BHYPERDX_PARAM_1518044896%3AInt64%7D%29%29+AND+%28%28hasTokenCaseInsensitive%28%60Body%60%2C+%276361%27%29%29%29++ORDER+BY+TimestampTime+DESC+LIMIT+%7BHYPERDX_PARAM_49586%3AInt32%7D+OFFSET+%7BHYPERDX_PARAM_48%3AInt32%7D&default_format=JSONCompactEachRowWithNamesAndTypes&date_time_output_format=iso&wait_end_of_query=0&cancel_http_readonly_queries_on_client_close=1&user=default&param_HYPERDX_PARAM_1544803905=default&param_HYPERDX_PARAM_129845054=otel_logs&param_HYPERDX_PARAM_1515071666=${FROM}&param_HYPERDX_PARAM_1518044896=${TO}&param_HYPERDX_PARAM_49586=${LOGS_LIMIT}&param_HYPERDX_PARAM_48=0"
+
 
   benchmark "HyperDX" "BASIC SELECT ALL" "GET" "$_requestUrlA" ""
   benchmark "HyperDX" "BASIC SELECT TEXT CONTAINS" "GET" "$_requestUrlB" ""
@@ -411,7 +412,7 @@ benchmarkElasticsearch() {
   local _dataSize=$(du -sh ./.data/elasticsearch-data | awk '{print $1}')
   echo "[Elastic] Current data size: $_dataSize"
   local queryA="FROM logs* | KEEP @timestamp,Body | SORT @timestamp DESC | LIMIT $LOGS_LIMIT"
-  local queryB="FROM logs* | WHERE Body LIKE \"*/revolutionary/dot-com*\" | KEEP @timestamp,Body | SORT @timestamp DESC | LIMIT $LOGS_LIMIT"
+  local queryB="FROM logs* | WHERE Body LIKE \"*6361*\" | KEEP @timestamp,Body | SORT @timestamp DESC | LIMIT $LOGS_LIMIT"
 
   local payloadA=$(jq -n \
     --argjson from "$FROM" \

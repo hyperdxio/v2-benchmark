@@ -19,9 +19,6 @@ receivers:
 processors:
   attributes/custom:
     actions:
-      - key: service.name
-        value: my-service
-        action: insert
       - key: service.version
         value: 1.0.0
         action: insert
@@ -40,6 +37,9 @@ processors:
       - key: cloud.provider
         value: aws
         action: insert
+      - key: cloud.region
+        value: us-west-2
+        action: insert
   resourcedetection:
     detectors:
       - env
@@ -48,6 +48,13 @@ processors:
     timeout: 5s
     override: false
   batch:
+    send_batch_size: 10000
+    send_batch_max_size: 11000
+    timeout: 5s
+  # https://github.com/grafana/loki/issues/9591
+  batch/loki:
+    send_batch_size: 1024
+    send_batch_max_size: 1024
   memory_limiter:
     limit_mib: 12800
     spike_limit_mib: 4000
@@ -105,4 +112,8 @@ service:
     logs:
       receivers: [otlp, filelog]
       processors: [attributes/custom, memory_limiter, batch]
-      exporters: [debug, clickhouse, otlphttp/loki, elasticsearch]
+      exporters: [debug, clickhouse, elasticsearch]
+    logs/loki:
+      receivers: [otlp, filelog]
+      processors: [attributes/custom, memory_limiter, batch/loki]
+      exporters: [debug, otlphttp/loki]
