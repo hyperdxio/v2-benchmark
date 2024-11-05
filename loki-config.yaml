@@ -42,3 +42,5 @@ ruler:
       bucketnames: loki-ruler
 compactor:
   working_directory: /tmp/compactor
+query_range:
+  cache_results: false
