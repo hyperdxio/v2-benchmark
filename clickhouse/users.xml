@@ -6,18 +6,6 @@
             <use_uncompressed_cache>0</use_uncompressed_cache>
             <load_balancing>in_order</load_balancing>
             <log_queries>1</log_queries>
-            <query_cache_max_size_in_bytes>1</query_cache_max_size_in_bytes>
-            <!-- The maximum number of SELECT query results stored in the cache for user/profile 'default' -->
-            <query_cache_max_entries>0</query_cache_max_entries>
-            <!-- Make both settings read-only so the user cannot change them -->
-            <constraints>
-                <query_cache_max_size_in_bytes>
-                    <readonly/>
-                </query_cache_max_size_in_bytes>
-                <query_cache_max_entries>
-                    <readonly/>
-                <query_cache_max_entries>
-            </constraints>
         </default>
     </profiles>
 
